@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>向呈報人收集罪案資料清單</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary: #00558F; /* 港鐵藍色調 */
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --border-color: #e0e0e0;
+            --btn-mic: #e74c3c;
+        }
+        
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            padding-bottom: 80px; /* 留出底部按鈕空間 */
+        }
+
+        h2 { text-align: center; color: var(--primary); font-size: 1.2rem; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px;}
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .section-title { font-weight: bold; font-size: 1.1rem; color: var(--primary); margin-bottom: 15px; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.9rem; margin-bottom: 5px; font-weight: 500; color: #555; }
+        
+        /* 語音輸入外框 */
+        .input-with-mic { display: flex; align-items: center; gap: 8px; }
+        .input-with-mic input[type="text"], .input-with-mic textarea {
+            flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem;
+        }
+        .mic-btn {
+            background: #fff; border: 1px solid var(--border-color); color: var(--btn-mic); width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .mic-btn:active { background: #ffebee; }
+
+        /* 單選/多選 按鈕樣式 */
+        .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip-group label {
+            background: #f0f0f0; padding: 8px 12px; border-radius: 20px; font-size: 0.9rem; margin: 0; border: 1px solid transparent; transition: all 0.2s; cursor: pointer;
+        }
+        .chip-group input[type="radio"], .chip-group input[type="checkbox"] { display: none; }
+        .chip-group input:checked + label { background: var(--primary); color: #fff; }
+
+        /* 排版小工具 */
+        .row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 120px; }
+        
+        /* 底部浮動按鈕 */
+        .bottom-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: flex; justify-content: center; z-index: 100;
+        }
+        .btn-export {
+            background: var(--primary); color: #fff; border: none; padding: 12px 20px; border-radius: 25px; font-size: 1.1rem; width: 100%; max-width: 400px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,85,143,0.3); display: flex; justify-content: center; align-items: center; gap: 10px;
+        }
+
+        /* 隱藏元素以供截圖時美化 */
+        .recording { animation: pulse 1.5s infinite; background: #ffebee !important; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div id="capture-area">
+    <h2>向呈報人收集罪案資料清單</h2>
+
+    <div class="card">
+        <div class="row">
+            <div class="form-group col" style="flex: 2;">
+                <label>呈報者姓名</label>
+                <div class="input-with-mic">
+                    <input type="text" id="reporter_name">
+                    <button class="mic-btn" onclick="startDictation('reporter_name', this)" type="button"><i class="fas fa-microphone"></i></button>
+                </div>
+            </div>
+            <div class="form-group col" style="flex: 1;">
+                <label>稱謂</label>
+                <div class="chip-group">
+                    <input type="radio" name="title" id="title_mr" value="先生"><label for="title_mr">先生</label>
+                    <input type="radio" name="title" id="title_ms" value="女士"><label for="title_ms">女士</label>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>聯絡電話</label>
+            <div class="input-with-mic">
+                <input type="text" id="reporter_phone" pattern="[0-9]*">
+                <button class="mic-btn" onclick="startDictation('reporter_phone', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>呈報日期 / 時間</label>
+            <input type="datetime-local" id="report_time" style="width: 100%; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">(1) 事件類別</div>
+        <div class="form-group">
+            <div class="chip-group">
+                <input type="checkbox" id="inc_1"><label for="inc_1">搶劫</label>
+                <input type="checkbox" id="inc_2"><label for="inc_2">打荷包</label>
+                <input type="checkbox" id="inc_3"><label for="inc_3">非禮</label>
+                <input type="checkbox" id="inc_4"><label for="inc_4">偷影裙底</label>
+                <input type="checkbox" id="inc_5"><label for="inc_5">襲擊</label>
+                <input type="checkbox" id="inc_6"><label for="inc_6">惡意破壞</label>
+                <input type="checkbox" id="inc_7"><label for="inc_7">持有可疑物品</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>其它事件:</label>
+            <div class="input-with-mic">
+                <input type="text" id="inc_other">
+                <button class="mic-btn" onclick="startDictation('inc_other', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+        <label>持有武器類型：</label>
+        <div class="form-group">
+            <div class="chip-group">
+                <input type="checkbox" id="wp_1"><label for="wp_1">槍械</label>
+                <input type="checkbox" id="wp_2"><label for="wp_2">爆炸品</label>
+                <input type="checkbox" id="wp_3"><label for="wp_3">牛肉刀</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>其它武器:</label>
+            <div class="input-with-mic">
+                <input type="text" id="wp_other">
+                <button class="mic-btn" onclick="startDictation('wp_other', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">(2) 案發日期 / 時間 / 地點</div>
+        <div class="input-with-mic">
+            <textarea id="incident_details" rows="2" style="width:100%"></textarea>
+            <button class="mic-btn" onclick="startDictation('incident_details', this)" type="button"><i class="fas fa-microphone"></i></button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">(3) 可疑人資料</div>
+        <div class="row">
+            <div class="form-group col">
+                <label>性別</label>
+                <div class="chip-group">
+                    <input type="radio" name="sus_gender" id="g_m"><label for="g_m">男</label>
+                    <input type="radio" name="sus_gender" id="g_f"><label for="g_f">女</label>
+                </div>
+            </div>
+            <div class="form-group col">
+                <label>年齡 (大約)</label>
+                <div class="input-with-mic">
+                    <input type="text" id="sus_age">
+                    <button class="mic-btn" onclick="startDictation('sus_age', this)" type="button"><i class="fas fa-microphone"></i></button>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>身材</label>
+            <div class="chip-group">
+                <input type="radio" name="sus_build" id="b_1"><label for="b_1">壯材</label>
+                <input type="radio" name="sus_build" id="b_2"><label for="b_2">中材</label>
+                <input type="radio" name="sus_build" id="b_3"><label for="b_3">瘦材</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>身高 (米)</label>
+            <div class="input-with-mic">
+                <input type="text" id="sus_height" placeholder="例如: 1.7">
+                <button class="mic-btn" onclick="startDictation('sus_height', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>髮型</label>
+            <div class="chip-group">
+                <input type="radio" name="sus_hair" id="h_1"><label for="h_1">長髮</label>
+                <input type="radio" name="sus_hair" id="h_2"><label for="h_2">短髮</label>
+                <input type="radio" name="sus_hair" id="h_3"><label for="h_3">曲髮</label>
+                <input type="radio" name="sus_hair" id="h_4"><label for="h_4">禿頭</label>
+            </div>
+            <div class="input-with-mic" style="margin-top:8px;">
+                <input type="text" id="sus_hair_other" placeholder="其它髮型">
+                <button class="mic-btn" onclick="startDictation('sus_hair_other', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>衣著 / 顏色</label>
+            <div class="chip-group">
+                <input type="checkbox" id="c_1"><label for="c_1">帶帽</label>
+                <input type="checkbox" id="c_2"><label for="c_2">眼鏡</label>
+                <input type="checkbox" id="c_3"><label for="c_3">風褸</label>
+                <input type="checkbox" id="c_4"><label for="c_4">有領T</label>
+                <input type="checkbox" id="c_5"><label for="c_5">圓領T</label>
+                <input type="checkbox" id="c_6"><label for="c_6">背心</label>
+            </div>
+            <div class="input-with-mic" style="margin-top:8px;">
+                <input type="text" id="sus_cloth_other" placeholder="其它衣著/顏色詳情">
+                <button class="mic-btn" onclick="startDictation('sus_cloth_other', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>鞋款 / 顏色</label>
+            <div class="chip-group">
+                <input type="radio" name="sus_shoes" id="s_1"><label for="s_1">波鞋</label>
+                <input type="radio" name="sus_shoes" id="s_2"><label for="s_2">涼鞋</label>
+                <input type="radio" name="sus_shoes" id="s_3"><label for="s_3">皮鞋</label>
+                <input type="radio" name="sus_shoes" id="s_4"><label for="s_4">拖鞋</label>
+                <input type="radio" name="sus_shoes" id="s_5"><label for="s_5">赤腳</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>袋 / 顏色</label>
+            <div class="chip-group">
+                <input type="radio" name="sus_bag" id="bg_1"><label for="bg_1">斜孭袋</label>
+                <input type="radio" name="sus_bag" id="bg_2"><label for="bg_2">背包</label>
+                <input type="radio" name="sus_bag" id="bg_3"><label for="bg_3">腰袋</label>
+            </div>
+            <div class="input-with-mic" style="margin-top:8px;">
+                <input type="text" id="sus_bag_other" placeholder="其它袋款/顏色詳情">
+                <button class="mic-btn" onclick="startDictation('sus_bag_other', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">(4) 逃走路線</div>
+        
+        <div class="form-group" style="border-left: 3px solid var(--primary); padding-left: 10px;">
+            <label>(a) 搭乘港鐵</label>
+            <div class="input-with-mic" style="margin-bottom:5px;">
+                <input type="text" id="esc_mtr_from" placeholder="由...站">
+                <input type="text" id="esc_mtr_line" placeholder="搭...線">
+            </div>
+            <div class="input-with-mic" style="margin-bottom:5px;">
+                <input type="text" id="esc_mtr_dir" placeholder="向...方向">
+                <button class="mic-btn" onclick="startDictation('esc_mtr_dir', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+            <label style="margin-top:5px;">列車車卡位置:</label>
+            <div class="chip-group">
+                <input type="radio" name="train_pos" id="tp_1"><label for="tp_1">前</label>
+                <input type="radio" name="train_pos" id="tp_2"><label for="tp_2">中</label>
+                <input type="radio" name="train_pos" id="tp_3"><label for="tp_3">後</label>
+            </div>
+        </div>
+
+        <div class="form-group" style="border-left: 3px solid var(--primary); padding-left: 10px;">
+            <label>(b) 徒步走出地面</label>
+            <div class="input-with-mic">
+                <input type="text" id="esc_walk_from" placeholder="由...站">
+                <input type="text" id="esc_walk_exit" placeholder="經...出口">
+                <button class="mic-btn" onclick="startDictation('esc_walk_exit', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+
+        <div class="form-group" style="border-left: 3px solid var(--primary); padding-left: 10px;">
+            <label>(c) 地面搭交通工具</label>
+            
+            <label style="font-size: 0.8rem; margin-top:5px;">i) 的士</label>
+            <div class="chip-group" style="margin-bottom: 5px;">
+                <input type="radio" name="taxi_color" id="tx_r"><label for="tx_r">紅</label>
+                <input type="radio" name="taxi_color" id="tx_g"><label for="tx_g">綠</label>
+                <input type="radio" name="taxi_color" id="tx_b"><label for="tx_b">藍</label>
+            </div>
+            <div class="input-with-mic" style="margin-bottom:5px;">
+                <input type="text" id="taxi_plate" placeholder="車牌">
+                <button class="mic-btn" onclick="startDictation('taxi_plate', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+            <div class="input-with-mic">
+                <input type="text" id="taxi_dir" placeholder="車行方向">
+                <button class="mic-btn" onclick="startDictation('taxi_dir', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+
+            <label style="font-size: 0.8rem; margin-top:10px;">ii) 巴士</label>
+            <div class="input-with-mic" style="margin-bottom:5px;">
+                <input type="text" id="bus_route" placeholder="線號">
+                <input type="text" id="bus_plate" placeholder="車牌">
+            </div>
+            <div class="input-with-mic">
+                <input type="text" id="bus_dir" placeholder="車行方向">
+                <button class="mic-btn" onclick="startDictation('bus_dir', this)" type="button"><i class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">(5) 其它資料提供</div>
+        <div class="input-with-mic">
+            <textarea id="other_info" rows="3" style="width:100%"></textarea>
+            <button class="mic-btn" onclick="startDictation('other_info', this)" type="button"><i class="fas fa-microphone"></i></button>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn-export" onclick="exportAndEmail()">
+        <i class="fas fa-share-square"></i> 匯出並傳送 Email
+    </button>
+</div>
+
+<script>
+    // 語音辨識功能 (Web Speech API)
+    function startDictation(inputId, btnElement) {
+        if (window.hasOwnProperty('webkitSpeechRecognition') || window.hasOwnProperty('SpeechRecognition')) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "yue-Hant-HK"; // 設定為香港粵語/繁體中文
+
+            recognition.onstart = function() {
+                btnElement.classList.add("recording");
+                btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            };
+
+            recognition.onresult = function(e) {
+                const targetInput = document.getElementById(inputId);
+                // 如果原來已有文字，則加上逗號分隔
+                const transcript = e.results[0][0].transcript;
+                if(targetInput.value.length > 0) {
+                    targetInput.value += "，" + transcript;
+                } else {
+                    targetInput.value += transcript;
+                }
+                resetMicBtn(btnElement);
+            };
+
+            recognition.onerror = function(e) {
+                alert("語音辨識失敗，請確保已授權麥克風權限。");
+                resetMicBtn(btnElement);
+            };
+
+            recognition.onend = function() {
+                resetMicBtn(btnElement);
+            };
+
+            recognition.start();
+        } else {
+            alert("您的瀏覽器不支援語音輸入功能，請手動輸入。");
+        }
+    }
+
+    function resetMicBtn(btn) {
+        btn.classList.remove("recording");
+        btn.innerHTML = '<i class="fas fa-microphone"></i>';
+    }
+
+    // 匯出成圖片並開啟 Email
+    function exportAndEmail() {
+        const btn = document.querySelector('.btn-export');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
+        
+        const captureArea = document.getElementById('capture-area');
+        
+        // 為了讓截圖更好看，暫時隱藏麥克風按鈕
+        const mics = document.querySelectorAll('.mic-btn');
+        mics.forEach(m => m.style.display = 'none');
+
+        // 使用 html2canvas 截圖
+        html2canvas(captureArea, {
+            scale: 2, // 提高圖片解析度
+            backgroundColor: "#f4f7f6"
+        }).then(canvas => {
+            // 恢復麥克風按鈕
+            mics.forEach(m => m.style.display = 'flex');
+            btn.innerHTML = originalText;
+
+            // 將 Canvas 轉換為圖片 Blob
+            canvas.toBlob(function(blob) {
+                // 自動下載圖片到本地
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const now = new Date();
+                const timeString = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + "_" + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+                a.download = `罪案資料呈報表_${timeString}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                // 提示用戶並打開 Email
+                setTimeout(() => {
+                    alert("表格已成功下載為圖片！\n即將為你打開 Email，請在 Email 中「加入附件」並選擇剛剛下載的圖片。");
+                    const email = "tst@mtr.com.hk";
+                    const subject = encodeURIComponent("向呈報人收集罪案資料清單 - " + timeString);
+                    const body = encodeURIComponent("你好，\n\n附件為剛填妥的「向呈報人收集罪案資料清單」截圖，請查收。\n\n(請緊記從相簿/檔案中加入剛剛下載的表格圖片作為附件)");
+                    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+                }, 500);
+            }, 'image/png');
+        });
+    }
+
+    // 初始化：將預設日期時間設為現在
+    window.onload = function() {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('report_time').value = now.toISOString().slice(0,16);
+    };
+</script>
+
+</body>
+</html>
